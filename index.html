@@ -395,9 +395,26 @@
   .viewer-close:hover{background:rgba(255,255,255,.15);}
   .viewer-body{
     flex:1; position:relative; background:#525659;
+    overflow-y:auto;
   }
-  .viewer-body iframe{
-    width:100%; height:100%; border:none;
+  .pdf-pages{
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+    padding:20px 16px 40px;
+  }
+  .pdf-pages canvas{
+    max-width:100%; height:auto;
+    box-shadow:0 6px 18px rgba(0,0,0,.35);
+    background:#fff;
+    user-select:none;
+    -webkit-user-drag:none;
+  }
+  .pdf-status{
+    color:#e3ece9; text-align:center; padding:40px 20px; font-family:'IBM Plex Sans',sans-serif;
+  }
+  .pdf-status .spinner{
+    width:22px; height:22px; border-width:3px;
+    border-color:rgba(255,255,255,.3); border-top-color:#fff;
+    display:block; margin:0 auto 12px;
   }
   .viewer-watermark{
     position:absolute; inset:0;
@@ -660,7 +677,7 @@
       </div>
     </div>
     <div class="viewer-body">
-      <iframe id="viewerFrame" title="Visor de guía clínica"></iframe>
+      <div id="pdfPages" class="pdf-pages"></div>
       <div class="viewer-watermark"></div>
     </div>
     <div class="viewer-foot">Documento de uso interno. La descarga e impresión no están habilitadas desde este visor.</div>
@@ -716,6 +733,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 // =====================================================================
 // CONFIGURACIÓN — EDITA ESTOS TRES VALORES CUANDO CREES EL REPOSITORIO
@@ -746,6 +764,8 @@ const SAMPLE_GUIDES = [
 
 let GUIDES = [];
 const state = { search:'', spec:'all', status:'all' };
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // =====================================================================
 // SESIÓN DE ADMINISTRADOR
@@ -973,30 +993,62 @@ function render(){
   });
 }
 
-function openViewer(title, path){
+let currentRenderToken = 0;
+
+async function openViewer(title, path){
   document.getElementById('viewerTitle').textContent = title;
-  const frame = document.getElementById('viewerFrame');
+  const pagesWrap = document.getElementById('pdfPages');
+  const myToken = ++currentRenderToken;
+
   if(!path){
-    frame.removeAttribute('src');
-    frame.srcdoc = '<p style="font-family:sans-serif; padding:20px;">Esta es una guía de ejemplo. Cuando el repositorio esté configurado y tenga PDFs reales, aquí se mostrará el documento.</p>';
-  } else {
-    // IMPORTANTE: hay que quitar el atributo srcdoc por completo (no solo vaciarlo),
-    // porque si el atributo srcdoc existe, aunque esté vacío, el navegador lo prioriza
-    // sobre "src" y el iframe se queda en blanco en vez de cargar el PDF.
-    frame.removeAttribute('srcdoc');
-    // Ruta relativa servida por GitHub Pages (la misma página), NO raw.githubusercontent.com,
-    // porque GitHub bloquea mostrar PDFs de raw.githubusercontent.com dentro de un iframe
-    // (X-Frame-Options) y fuerza la descarga en vez de mostrarlo.
-    frame.src = path + '#toolbar=0&navpanes=0';
+    pagesWrap.innerHTML = '<p class="pdf-status">Esta es una guía de ejemplo. Cuando el repositorio esté configurado y tenga PDFs reales, aquí se mostrará el documento.</p>';
+    document.getElementById('viewerOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    return;
   }
+
+  pagesWrap.innerHTML = '<div class="pdf-status"><span class="spinner"></span>Cargando guía…</div>';
   document.getElementById('viewerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+
+  try{
+    // Ruta relativa servida por GitHub Pages (la misma página). Traemos los bytes del PDF
+    // nosotros mismos y lo dibujamos como imágenes página por página: así el navegador
+    // nunca abre su propio visor de PDF, y por lo tanto no aparecen botones de
+    // descargar, imprimir ni editar — simplemente no existen en esta vista.
+    const res = await fetch(path);
+    if(!res.ok) throw new Error('No se pudo descargar el archivo (' + res.status + ')');
+    const buffer = await res.arrayBuffer();
+
+    if(myToken !== currentRenderToken) return; // el usuario ya cerró/cambió de guía
+
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    if(myToken !== currentRenderToken) return;
+
+    pagesWrap.innerHTML = '';
+    for(let i = 1; i <= pdf.numPages; i++){
+      if(myToken !== currentRenderToken) return;
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.4 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      pagesWrap.appendChild(canvas);
+    }
+  } catch(err){
+    console.error('Error mostrando el PDF:', err);
+    if(myToken === currentRenderToken){
+      pagesWrap.innerHTML = '<p class="pdf-status">No se pudo cargar la guía. Puede que se haya subido hace muy poco (GitHub Pages tarda uno o dos minutos en publicarla) — intente de nuevo en un momento.</p>';
+    }
+  }
 }
+
 function closeViewer(){
+  currentRenderToken++; // cancela cualquier render en curso
   document.getElementById('viewerOverlay').classList.remove('open');
-  const frame = document.getElementById('viewerFrame');
-  frame.removeAttribute('src');
-  frame.removeAttribute('srcdoc');
+  document.getElementById('pdfPages').innerHTML = '';
   document.body.style.overflow = '';
 }
 document.getElementById('viewerClose').addEventListener('click', closeViewer);
