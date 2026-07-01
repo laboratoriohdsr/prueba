@@ -416,6 +416,127 @@
     border-top:1px solid var(--line);
     text-align:center;
   }
+
+  /* ===== Botón administrador / panel admin ===== */
+  .admin-btn{
+    font-size:11.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:#cfe0de;
+    border:1px solid rgba(238,243,242,.3);
+    background:transparent;
+    padding:6px 12px;
+    border-radius:100px;
+    cursor:pointer;
+    font-family:'IBM Plex Sans', sans-serif;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .admin-btn:hover{background:rgba(238,243,242,.12);}
+  .admin-btn.on{background:var(--green); border-color:var(--green); color:#0b2238; font-weight:600;}
+
+  .modal-overlay{
+    position:fixed; inset:0;
+    background:rgba(11,34,56,.72);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:60;
+    padding:24px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-box{
+    background:var(--paper-card);
+    width:min(420px, 100%);
+    max-height:90vh;
+    overflow-y:auto;
+    border-radius:var(--radius);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,.5);
+    padding:24px;
+  }
+  .modal-box h3{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:16px;
+    font-weight:600;
+    margin-bottom:4px;
+    color:var(--navy-deep);
+  }
+  .modal-box .modal-sub{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-bottom:18px;
+    line-height:1.5;
+  }
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--ink-soft);
+    font-weight:600;
+    margin-bottom:5px;
+  }
+  .field input, .field select{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:9px 10px;
+    font-size:14px;
+    font-family:'IBM Plex Sans', sans-serif;
+    background:#fff;
+    color:var(--ink);
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--teal); outline-offset:1px;}
+  .field .hint{font-size:11px; color:var(--ink-soft); margin-top:4px;}
+  .modal-actions{display:flex; gap:8px; margin-top:18px;}
+  .modal-actions .btn{flex:1;}
+  .modal-error{
+    background:rgba(163,55,47,.1);
+    color:#a3372f;
+    border:1px solid rgba(163,55,47,.25);
+    padding:8px 10px;
+    border-radius:7px;
+    font-size:12.5px;
+    margin-bottom:14px;
+  }
+  .modal-success{
+    background:rgba(60,122,82,.12);
+    color:#2f6342;
+    border:1px solid rgba(60,122,82,.28);
+    padding:8px 10px;
+    border-radius:7px;
+    font-size:12.5px;
+    margin-bottom:14px;
+  }
+  .modal-link{
+    background:none; border:none; color:var(--navy); text-decoration:underline;
+    font-size:12.5px; cursor:pointer; padding:0; font-family:'IBM Plex Sans', sans-serif;
+  }
+  .admin-panel{
+    background:#fff8ec;
+    border:1px solid #eadfc4;
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin-bottom:22px;
+  }
+  .admin-panel h3{
+    font-size:12.5px; text-transform:uppercase; letter-spacing:.06em;
+    color:#8f5d20; font-weight:600; margin-bottom:10px;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .admin-panel-row{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .admin-panel-row .field{flex:1; min-width:150px; margin-bottom:0;}
+  .card .admin-actions{display:flex; gap:6px; margin-top:6px;}
+  .card .btn.danger{background:transparent; color:#a3372f; border-color:rgba(163,55,47,.3);}
+  .card .btn.danger:hover{background:rgba(163,55,47,.08);}
+  .spinner{
+    display:inline-block; width:14px; height:14px; border-radius:50%;
+    border:2px solid rgba(255,255,255,.4); border-top-color:#fff;
+    animation:spin .7s linear infinite; vertical-align:middle; margin-right:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
 </style>
 </head>
 <body>
@@ -427,6 +548,10 @@
       <div class="name"><strong>Repositorio de Guías de Práctica Clínica</strong>Zarzal, Valle del Cauca</div>
     </div>
     <nav class="tag">Acceso personal médico</nav>
+    <button class="admin-btn" id="adminBtn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span id="adminBtnLabel">Administrador</span>
+    </button>
   </div>
   <div class="hero">
     <div>
@@ -464,6 +589,50 @@
   </aside>
 
   <section>
+    <div class="admin-panel" id="adminPanel" style="display:none;">
+      <h3>Panel de administrador — Subir nueva guía</h3>
+      <div id="uploadMsg"></div>
+      <form id="uploadForm">
+        <div class="admin-panel-row">
+          <div class="field">
+            <label for="fTitle">Título de la guía</label>
+            <input type="text" id="fTitle" placeholder="Ej. Enfoque inicial del dolor torácico" required>
+          </div>
+          <div class="field">
+            <label for="fSpec">Especialidad</label>
+            <select id="fSpec" required></select>
+          </div>
+        </div>
+        <div class="admin-panel-row" style="margin-top:12px;">
+          <div class="field">
+            <label for="fCode">Código (opcional)</label>
+            <input type="text" id="fCode" placeholder="Se genera automático si se deja vacío">
+          </div>
+          <div class="field">
+            <label for="fStatus">Estado</label>
+            <select id="fStatus">
+              <option value="vigente">Vigente</option>
+              <option value="revision">En revisión</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fPages">Páginas (opcional)</label>
+            <input type="number" id="fPages" min="0" placeholder="Ej. 12">
+          </div>
+        </div>
+        <div class="admin-panel-row" style="margin-top:12px;">
+          <div class="field" style="flex:2;">
+            <label for="fFile">Archivo PDF</label>
+            <input type="file" id="fFile" accept="application/pdf" required>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn primary" id="uploadBtn">Subir guía</button>
+          <button type="button" class="btn ghost" id="changePassBtn">Cambiar contraseña</button>
+          <button type="button" class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </form>
+    </div>
     <div class="results-head">
       <h2 id="resultsTitle">Todas las guías</h2>
       <span class="sub" id="resultsSub"></span>
@@ -498,17 +667,67 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="loginOverlay">
+  <div class="modal-box">
+    <h3>Acceso de administrador</h3>
+    <p class="modal-sub">Solo la persona encargada de publicar guías debe iniciar sesión aquí. Los demás usuarios no necesitan hacerlo para consultar el repositorio.</p>
+    <div id="loginMsg"></div>
+    <form id="loginForm">
+      <div class="field">
+        <label for="lUser">Usuario</label>
+        <input type="text" id="lUser" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="lPass">Contraseña</label>
+        <input type="password" id="lPass" autocomplete="current-password" required>
+      </div>
+      <div class="field">
+        <label for="lToken">Token personal de GitHub</label>
+        <input type="password" id="lToken" autocomplete="off" required>
+        <p class="hint">Se usa solo en este navegador para poder subir archivos al repositorio. No se guarda de forma permanente: se borra al cerrar la pestaña.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn primary" id="loginSubmitBtn">Ingresar</button>
+        <button type="button" class="btn ghost" id="loginCancelBtn">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="passOverlay">
+  <div class="modal-box">
+    <h3>Cambiar contraseña</h3>
+    <p class="modal-sub">Este cambio solo se guarda en este navegador/computador. Si el administrador usa otro equipo, deberá cambiarla también allí.</p>
+    <div id="passMsg"></div>
+    <form id="passForm">
+      <div class="field">
+        <label for="pCurrent">Contraseña actual</label>
+        <input type="password" id="pCurrent" required>
+      </div>
+      <div class="field">
+        <label for="pNew">Nueva contraseña</label>
+        <input type="password" id="pNew" required minlength="4">
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn primary">Guardar</button>
+        <button type="button" class="btn ghost" id="passCancelBtn">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 // =====================================================================
-// FUENTE DE DATOS: Google Sheets
-// 1) Crea una hoja de cálculo en Google Sheets con estas columnas EXACTAS
-//    en la primera fila: codigo | titulo | especialidad | estado | fecha | paginas | url
-//    - especialidad debe usar uno de estos valores: urgencias, pediatria,
-//      ginecologia, medicina-interna, cirugia, cardiologia
-//    - estado debe ser: vigente  o  revision
-// 2) Archivo > Compartir > Publicar en la Web > selecciona la hoja > formato CSV > Publicar
-// 3) Pega aquí abajo el link que te entrega Google (termina en /pub?output=csv)
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS7TnMgCH4ng-Vm6W0xZH8vIr5oxbqRJvGSlMlXc7In6h_H_DhDyRQZg_LDuuWptEZkvD3CPH4wCDKZ/pub?output=csv"; // <-- pega aquí el link publicado de Google Sheets
+// CONFIGURACIÓN — EDITA ESTOS TRES VALORES CUANDO CREES EL REPOSITORIO
+// =====================================================================
+const GITHUB_OWNER  = "laboratoriohdsr";      // <-- tu usuario/organización en GitHub
+const GITHUB_REPO   = "prueba";               // <-- nombre del repositorio
+const GITHUB_BRANCH = "main";                 // <-- normalmente "main"
+
+const IS_CONFIGURED = GITHUB_OWNER !== "TU-USUARIO-DE-GITHUB";
+const RAW_BASE  = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
+const API_BASE  = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents`;
+const INDEX_PATH = "data/index.json";
 
 const SPECIALTIES = [
   {id:'urgencias', label:'Urgencias', color:'var(--c-urgencias)'},
@@ -519,87 +738,155 @@ const SPECIALTIES = [
   {id:'cardiologia', label:'Cardiología', color:'var(--c-cardiologia)'},
 ];
 
-// Contenido de ejemplo — se usa solo si SHEET_CSV_URL está vacío o no se puede leer
+// Contenido de ejemplo — se usa solo si el repositorio aún no ha sido configurado
 const SAMPLE_GUIDES = [
-  {code:'GPCU-01', title:'Guía enfoque inicial del dolor abdominal', spec:'urgencias', status:'vigente', updated:'2026-01', pages:7, url:'#'},
-  {code:'GPCU-02', title:'Diarrea infecciosa y no infecciosa', spec:'urgencias', status:'vigente', updated:'', pages:8, url:'https://drive.google.com/file/d/1sTKIRtZ1fbKlKfcy_Qe5hvq12f1PscqA/view?usp=sharing'},
-  {code:'GPCU-03', title:'Enfoque del dolor torácico en urgencias', spec:'urgencias', status:'vigente', updated:'', pages:0, url:'https://drive.google.com/file/d/1zjrpic9itCL3mndQLEF7WGMZ7EHiP1dW/view?usp=sharing'},
+  {code:'GPCU-01', title:'Guía enfoque inicial del dolor abdominal (EJEMPLO)', spec:'urgencias', status:'vigente', updated:'2026-01', pages:7, path:''},
+  {code:'GPCP-01', title:'Fiebre sin foco en el lactante (EJEMPLO)', spec:'pediatria', status:'vigente', updated:'2026-01', pages:5, path:''},
 ];
 
 let GUIDES = [];
+const state = { search:'', spec:'all', status:'all' };
 
-// Parser CSV simple, soporta campos entre comillas con comas internas
-function parseCSV(text){
-  const rows = [];
-  let row = [], field = '', inQuotes = false;
-  for(let i=0;i<text.length;i++){
-    const c = text[i], next = text[i+1];
-    if(inQuotes){
-      if(c === '"' && next === '"'){ field += '"'; i++; }
-      else if(c === '"'){ inQuotes = false; }
-      else { field += c; }
-    } else {
-      if(c === '"'){ inQuotes = true; }
-      else if(c === ','){ row.push(field); field=''; }
-      else if(c === '\n' || c === '\r'){
-        if(field!=='' || row.length){ row.push(field); rows.push(row); }
-        row=[]; field='';
-        if(c==='\r' && next==='\n') i++;
-      } else { field += c; }
-    }
+// =====================================================================
+// SESIÓN DE ADMINISTRADOR
+// =====================================================================
+function isAdmin(){ return sessionStorage.getItem('hdsr_is_admin') === '1'; }
+function getToken(){ return sessionStorage.getItem('hdsr_gh_token') || ''; }
+function getStoredUser(){ return localStorage.getItem('hdsr_admin_user') || 'admin'; }
+function getStoredPass(){ return localStorage.getItem('hdsr_admin_pass') || 'HDSR123'; }
+
+function updateAdminUI(){
+  const btn = document.getElementById('adminBtn');
+  const label = document.getElementById('adminBtnLabel');
+  const panel = document.getElementById('adminPanel');
+  if(isAdmin()){
+    btn.classList.add('on');
+    label.textContent = 'Sesión admin activa';
+    panel.style.display = 'block';
+  } else {
+    btn.classList.remove('on');
+    label.textContent = 'Administrador';
+    panel.style.display = 'none';
   }
-  if(field!=='' || row.length){ row.push(field); rows.push(row); }
-  return rows.filter(r => r.length && r.some(v=>v.trim()!==''));
+  render();
 }
 
-function csvToGuides(text){
-  const rows = parseCSV(text);
-  if(rows.length < 2) return [];
-  const headers = rows[0].map(h => h.trim().toLowerCase());
-  const idx = {
-    code: headers.indexOf('codigo'),
-    title: headers.indexOf('titulo'),
-    spec: headers.indexOf('especialidad'),
-    status: headers.indexOf('estado'),
-    updated: headers.indexOf('fecha'),
-    pages: headers.indexOf('paginas'),
-    url: headers.indexOf('url'),
-  };
-  return rows.slice(1).map(r => ({
-    code: (r[idx.code]||'').trim(),
-    title: (r[idx.title]||'').trim(),
-    spec: (r[idx.spec]||'').trim().toLowerCase(),
-    status: (r[idx.status]||'vigente').trim().toLowerCase(),
-    updated: (r[idx.updated]||'').trim(),
-    pages: parseInt(r[idx.pages]) || 0,
-    url: (r[idx.url]||'#').trim(),
-  })).filter(g => g.title);
+document.getElementById('adminBtn').addEventListener('click', ()=>{
+  if(isAdmin()){
+    document.getElementById('adminPanel').scrollIntoView({behavior:'smooth', block:'start'});
+  } else {
+    openLogin();
+  }
+});
+
+function openLogin(){
+  document.getElementById('loginMsg').innerHTML = '';
+  document.getElementById('loginForm').reset();
+  document.getElementById('loginOverlay').classList.add('open');
+}
+function closeLogin(){ document.getElementById('loginOverlay').classList.remove('open'); }
+document.getElementById('loginCancelBtn').addEventListener('click', closeLogin);
+document.getElementById('loginOverlay').addEventListener('click', (e)=>{ if(e.target.id==='loginOverlay') closeLogin(); });
+
+document.getElementById('loginForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const user = document.getElementById('lUser').value.trim();
+  const pass = document.getElementById('lPass').value;
+  const token = document.getElementById('lToken').value.trim();
+  const msg = document.getElementById('loginMsg');
+
+  if(user !== getStoredUser() || pass !== getStoredPass()){
+    msg.innerHTML = '<div class="modal-error">Usuario o contraseña incorrectos.</div>';
+    return;
+  }
+  if(!token){
+    msg.innerHTML = '<div class="modal-error">Debes ingresar el token de GitHub para poder subir archivos.</div>';
+    return;
+  }
+  sessionStorage.setItem('hdsr_is_admin', '1');
+  sessionStorage.setItem('hdsr_gh_token', token);
+  closeLogin();
+  updateAdminUI();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  sessionStorage.removeItem('hdsr_is_admin');
+  sessionStorage.removeItem('hdsr_gh_token');
+  updateAdminUI();
+});
+
+document.getElementById('changePassBtn').addEventListener('click', ()=>{
+  document.getElementById('passMsg').innerHTML = '';
+  document.getElementById('passForm').reset();
+  document.getElementById('passOverlay').classList.add('open');
+});
+document.getElementById('passCancelBtn').addEventListener('click', ()=>{
+  document.getElementById('passOverlay').classList.remove('open');
+});
+document.getElementById('passOverlay').addEventListener('click', (e)=>{
+  if(e.target.id==='passOverlay') document.getElementById('passOverlay').classList.remove('open');
+});
+document.getElementById('passForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const current = document.getElementById('pCurrent').value;
+  const next = document.getElementById('pNew').value;
+  const msg = document.getElementById('passMsg');
+  if(current !== getStoredPass()){
+    msg.innerHTML = '<div class="modal-error">La contraseña actual no coincide.</div>';
+    return;
+  }
+  localStorage.setItem('hdsr_admin_pass', next);
+  msg.innerHTML = '<div class="modal-success">Contraseña actualizada en este navegador.</div>';
+  setTimeout(()=>{ document.getElementById('passOverlay').classList.remove('open'); }, 1200);
+});
+
+// =====================================================================
+// CARGA DE DATOS DESDE GITHUB
+// =====================================================================
+function parseRepoJson(text){
+  try{
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch(err){
+    return [];
+  }
 }
 
 async function loadGuides(){
-  if(!SHEET_CSV_URL){
+  if(!IS_CONFIGURED){
     GUIDES = SAMPLE_GUIDES;
     render();
     return;
   }
   try{
-    const res = await fetch(SHEET_CSV_URL + (SHEET_CSV_URL.includes('?') ? '&' : '?') + 'cb=' + Date.now());
-    if(!res.ok) throw new Error('No se pudo leer la hoja');
+    const url = `${RAW_BASE}/${INDEX_PATH}?cb=${Date.now()}`;
+    const res = await fetch(url);
+    if(res.status === 404){ GUIDES = []; render(); return; }
+    if(!res.ok) throw new Error('No se pudo leer el índice');
     const text = await res.text();
-    const parsed = csvToGuides(text);
-    GUIDES = parsed.length ? parsed : SAMPLE_GUIDES;
+    GUIDES = parseRepoJson(text);
   } catch(err){
-    console.error('Error cargando guías desde Google Sheets:', err);
+    console.error('Error cargando guías desde GitHub:', err);
     GUIDES = SAMPLE_GUIDES;
   }
   render();
 }
 
-const state = { search:'', spec:'all', status:'all' };
+// =====================================================================
+// RENDER / FILTROS / BÚSQUEDA (misma lógica de siempre)
+// =====================================================================
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, (c)=>({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
+}
+
+function specMeta(id){
+  return SPECIALTIES.find(s=>s.id===id) || {id:id||'otra', label:'Otra', color:'var(--ink-soft)'};
+}
 
 function renderFilters(){
   const specWrap = document.getElementById('specFilters');
-  const all = SPECIALTIES.reduce((acc,s)=>acc, null);
   const counts = {};
   GUIDES.forEach(g=>{ counts[g.spec] = (counts[g.spec]||0)+1; });
 
@@ -624,13 +911,20 @@ function renderFilters(){
   statusWrap.querySelectorAll('.chip').forEach(b=>b.addEventListener('click', ()=>{ state.status=b.dataset.status; render(); }));
 }
 
-function specMeta(id){ return SPECIALTIES.find(s=>s.id===id); }
-
 function render(){
   renderFilters();
+
+  // Rellenar el select de especialidades del formulario de subida
+  const fSpec = document.getElementById('fSpec');
+  if(fSpec && !fSpec.dataset.filled){
+    fSpec.innerHTML = SPECIALTIES.map(s=>`<option value="${s.id}">${s.label}</option>`).join('');
+    fSpec.dataset.filled = '1';
+  }
+
   const q = state.search.trim().toLowerCase();
   const filtered = GUIDES.filter(g=>{
-    const matchesQ = !q || g.title.toLowerCase().includes(q) || g.code.toLowerCase().includes(q) || specMeta(g.spec).label.toLowerCase().includes(q);
+    const sm = specMeta(g.spec);
+    const matchesQ = !q || (g.title||'').toLowerCase().includes(q) || (g.code||'').toLowerCase().includes(q) || sm.label.toLowerCase().includes(q);
     const matchesSpec = state.spec==='all' || g.spec===state.spec;
     const matchesStatus = state.status==='all' || g.status===state.status;
     return matchesQ && matchesSpec && matchesStatus;
@@ -648,48 +942,54 @@ function render(){
     return;
   }
 
-  grid.innerHTML = filtered.map(g=>{
+  grid.innerHTML = filtered.map((g, idx)=>{
     const sm = specMeta(g.spec);
+    const realIdx = GUIDES.indexOf(g);
     return `<article class="card" style="--cat-color:${sm.color}">
       <div class="row1">
-        <span class="code mono">${g.code}</span>
+        <span class="code mono">${escapeHtml(g.code || '—')}</span>
         <span class="status ${g.status}">${g.status==='vigente'?'Vigente':'En revisión'}</span>
       </div>
       <span class="spec">${sm.label}</span>
-      <h3>${g.title}</h3>
+      <h3>${escapeHtml(g.title)}</h3>
       <div class="meta">
-        ${g.updated ? `<span>Actualizada ${g.updated}</span><span>·</span>` : ''}
+        ${g.updated ? `<span>Actualizada ${escapeHtml(g.updated)}</span><span>·</span>` : ''}
         <span>${g.pages ? g.pages + ' pág.' : 'Páginas no registradas'}</span>
       </div>
       <div class="actions">
-        <button class="btn primary view-btn" data-title="${g.title}" data-url="${g.url}">Ver guía</button>
+        <button class="btn primary view-btn" data-title="${escapeHtml(g.title)}" data-path="${escapeHtml(g.path||'')}">Ver guía</button>
       </div>
+      ${isAdmin() ? `<div class="admin-actions">
+        <button class="btn danger delete-btn" data-idx="${realIdx}">Eliminar</button>
+      </div>` : ''}
     </article>`;
   }).join('');
 
   document.querySelectorAll('.view-btn').forEach(b=>{
-    b.addEventListener('click', ()=>openViewer(b.dataset.title, b.dataset.url));
+    b.addEventListener('click', ()=>openViewer(b.dataset.title, b.dataset.path));
+  });
+  document.querySelectorAll('.delete-btn').forEach(b=>{
+    b.addEventListener('click', ()=>deleteGuide(parseInt(b.dataset.idx, 10)));
   });
 }
 
-function toEmbeddableUrl(url){
-  if(!url) return '';
-  // Convierte enlaces normales de Google Drive (.../file/d/ID/view) al formato incrustable (.../preview)
-  const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if(m) return `https://drive.google.com/file/d/${m[1]}/preview`;
-  return url;
-}
-
-function openViewer(title, url){
+function openViewer(title, path){
   document.getElementById('viewerTitle').textContent = title;
-  const embeddable = toEmbeddableUrl(url);
-  document.getElementById('viewerFrame').src = embeddable + (embeddable.includes('?') ? '&' : '#') + 'toolbar=0&navpanes=0';
+  const frame = document.getElementById('viewerFrame');
+  if(!path){
+    frame.srcdoc = '<p style="font-family:sans-serif; padding:20px;">Esta es una guía de ejemplo. Cuando el repositorio esté configurado y tenga PDFs reales, aquí se mostrará el documento.</p>';
+  } else {
+    frame.srcdoc = '';
+    const url = `${RAW_BASE}/${path}`;
+    frame.src = url + '#toolbar=0&navpanes=0';
+  }
   document.getElementById('viewerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 function closeViewer(){
   document.getElementById('viewerOverlay').classList.remove('open');
   document.getElementById('viewerFrame').src = '';
+  document.getElementById('viewerFrame').srcdoc = '';
   document.body.style.overflow = '';
 }
 document.getElementById('viewerClose').addEventListener('click', closeViewer);
@@ -697,7 +997,7 @@ document.getElementById('viewerOverlay').addEventListener('click', (e)=>{
   if(e.target.id==='viewerOverlay') closeViewer();
 });
 document.addEventListener('keydown', (e)=>{
-  if(e.key==='Escape') closeViewer();
+  if(e.key==='Escape'){ closeViewer(); }
 });
 document.addEventListener('contextmenu', (e)=> e.preventDefault());
 
@@ -706,6 +1006,180 @@ document.getElementById('searchInput').addEventListener('input', (e)=>{
   render();
 });
 
+// =====================================================================
+// SUBIDA DE PDFs A GITHUB (solo administrador)
+// =====================================================================
+function fileToBase64(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function slugify(str){
+  return String(str)
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 60) || 'guia';
+}
+
+async function githubGet(path){
+  const res = await fetch(`${API_BASE}/${path}`, {
+    headers: {
+      'Authorization': `Bearer ${getToken()}`,
+      'Accept': 'application/vnd.github+json'
+    }
+  });
+  if(res.status === 404) return null;
+  if(!res.ok) throw new Error(`Error leyendo ${path}: ${res.status}`);
+  return res.json();
+}
+
+async function githubPut(path, base64Content, message, sha){
+  const body = { message, content: base64Content, branch: GITHUB_BRANCH };
+  if(sha) body.sha = sha;
+  const res = await fetch(`${API_BASE}/${path}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${getToken()}`,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok){
+    const errText = await res.text();
+    throw new Error(`GitHub respondió ${res.status}: ${errText}`);
+  }
+  return res.json();
+}
+
+async function githubDelete(path, message, sha){
+  const res = await fetch(`${API_BASE}/${path}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${getToken()}`,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ message, sha, branch: GITHUB_BRANCH })
+  });
+  if(!res.ok){
+    const errText = await res.text();
+    throw new Error(`GitHub respondió ${res.status}: ${errText}`);
+  }
+}
+
+document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const msg = document.getElementById('uploadMsg');
+  const btn = document.getElementById('uploadBtn');
+
+  if(!IS_CONFIGURED){
+    msg.innerHTML = '<div class="modal-error">Falta configurar GITHUB_OWNER y GITHUB_REPO al inicio del archivo antes de poder subir guías reales.</div>';
+    return;
+  }
+
+  const title = document.getElementById('fTitle').value.trim();
+  const spec = document.getElementById('fSpec').value;
+  let code = document.getElementById('fCode').value.trim();
+  const status = document.getElementById('fStatus').value;
+  const pages = parseInt(document.getElementById('fPages').value, 10) || 0;
+  const fileInput = document.getElementById('fFile');
+  const file = fileInput.files[0];
+
+  if(!file){
+    msg.innerHTML = '<div class="modal-error">Selecciona un archivo PDF.</div>';
+    return;
+  }
+  if(file.type !== 'application/pdf'){
+    msg.innerHTML = '<div class="modal-error">El archivo debe ser un PDF.</div>';
+    return;
+  }
+  if(file.size > 25 * 1024 * 1024){
+    msg.innerHTML = '<div class="modal-error">El archivo es muy pesado (máximo recomendado: 25 MB).</div>';
+    return;
+  }
+  if(!code) code = `GPC-${Date.now().toString().slice(-6)}`;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Subiendo...';
+  msg.innerHTML = '';
+
+  try{
+    const base64 = await fileToBase64(file);
+    const filename = `${slugify(code)}-${slugify(title)}-${Date.now()}.pdf`;
+    const filePath = `guias/${spec}/${filename}`;
+
+    await githubPut(filePath, base64, `Subir guía: ${title}`);
+
+    const existingIndex = await githubGet(INDEX_PATH);
+    let list = [];
+    let sha = null;
+    if(existingIndex){
+      sha = existingIndex.sha;
+      const decoded = decodeURIComponent(escape(atob(existingIndex.content.replace(/\n/g, ''))));
+      list = parseRepoJson(decoded);
+    }
+
+    const now = new Date();
+    const updated = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+    list.push({ code, title, spec, status, updated, pages, path: filePath });
+
+    const newIndexB64 = btoa(unescape(encodeURIComponent(JSON.stringify(list, null, 2))));
+    await githubPut(INDEX_PATH, newIndexB64, `Actualizar índice: ${title}`, sha);
+
+    msg.innerHTML = '<div class="modal-success">Guía subida correctamente. Puede tardar uno o dos minutos en aparecer para todos por la caché de GitHub Pages.</div>';
+    document.getElementById('uploadForm').reset();
+    await loadGuides();
+  } catch(err){
+    console.error(err);
+    msg.innerHTML = `<div class="modal-error">No se pudo subir la guía: ${escapeHtml(err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Subir guía';
+  }
+});
+
+// =====================================================================
+// ELIMINAR GUÍA (solo administrador)
+// =====================================================================
+async function deleteGuide(idx){
+  const guide = GUIDES[idx];
+  if(!guide) return;
+  if(!confirm(`¿Eliminar la guía "${guide.title}"? Esta acción no se puede deshacer.`)) return;
+
+  try{
+    if(guide.path){
+      const fileMeta = await githubGet(guide.path);
+      if(fileMeta){
+        await githubDelete(guide.path, `Eliminar guía: ${guide.title}`, fileMeta.sha);
+      }
+    }
+    const existingIndex = await githubGet(INDEX_PATH);
+    if(existingIndex){
+      const decoded = decodeURIComponent(escape(atob(existingIndex.content.replace(/\n/g, ''))));
+      let list = parseRepoJson(decoded);
+      list = list.filter(g => g.path !== guide.path || g.title !== guide.title);
+      const newIndexB64 = btoa(unescape(encodeURIComponent(JSON.stringify(list, null, 2))));
+      await githubPut(INDEX_PATH, newIndexB64, `Eliminar del índice: ${guide.title}`, existingIndex.sha);
+    }
+    await loadGuides();
+  } catch(err){
+    console.error(err);
+    alert('No se pudo eliminar la guía: ' + err.message);
+  }
+}
+
+// =====================================================================
+// INICIO
+// =====================================================================
+updateAdminUI();
 loadGuides();
 </script>
 
