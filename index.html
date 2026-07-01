@@ -977,12 +977,16 @@ function openViewer(title, path){
   document.getElementById('viewerTitle').textContent = title;
   const frame = document.getElementById('viewerFrame');
   if(!path){
+    frame.removeAttribute('src');
     frame.srcdoc = '<p style="font-family:sans-serif; padding:20px;">Esta es una guía de ejemplo. Cuando el repositorio esté configurado y tenga PDFs reales, aquí se mostrará el documento.</p>';
   } else {
-    frame.srcdoc = '';
-    // IMPORTANTE: usamos una ruta relativa (servida por GitHub Pages, la misma página),
-    // NO raw.githubusercontent.com, porque GitHub bloquea mostrar PDFs de raw.githubusercontent.com
-    // dentro de un iframe (X-Frame-Options) y fuerza la descarga en vez de mostrarlo.
+    // IMPORTANTE: hay que quitar el atributo srcdoc por completo (no solo vaciarlo),
+    // porque si el atributo srcdoc existe, aunque esté vacío, el navegador lo prioriza
+    // sobre "src" y el iframe se queda en blanco en vez de cargar el PDF.
+    frame.removeAttribute('srcdoc');
+    // Ruta relativa servida por GitHub Pages (la misma página), NO raw.githubusercontent.com,
+    // porque GitHub bloquea mostrar PDFs de raw.githubusercontent.com dentro de un iframe
+    // (X-Frame-Options) y fuerza la descarga en vez de mostrarlo.
     frame.src = path + '#toolbar=0&navpanes=0';
   }
   document.getElementById('viewerOverlay').classList.add('open');
@@ -990,8 +994,9 @@ function openViewer(title, path){
 }
 function closeViewer(){
   document.getElementById('viewerOverlay').classList.remove('open');
-  document.getElementById('viewerFrame').src = '';
-  document.getElementById('viewerFrame').srcdoc = '';
+  const frame = document.getElementById('viewerFrame');
+  frame.removeAttribute('src');
+  frame.removeAttribute('srcdoc');
   document.body.style.overflow = '';
 }
 document.getElementById('viewerClose').addEventListener('click', closeViewer);
