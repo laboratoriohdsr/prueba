@@ -980,8 +980,10 @@ function openViewer(title, path){
     frame.srcdoc = '<p style="font-family:sans-serif; padding:20px;">Esta es una guía de ejemplo. Cuando el repositorio esté configurado y tenga PDFs reales, aquí se mostrará el documento.</p>';
   } else {
     frame.srcdoc = '';
-    const url = `${RAW_BASE}/${path}`;
-    frame.src = url + '#toolbar=0&navpanes=0';
+    // IMPORTANTE: usamos una ruta relativa (servida por GitHub Pages, la misma página),
+    // NO raw.githubusercontent.com, porque GitHub bloquea mostrar PDFs de raw.githubusercontent.com
+    // dentro de un iframe (X-Frame-Options) y fuerza la descarga en vez de mostrarlo.
+    frame.src = path + '#toolbar=0&navpanes=0';
   }
   document.getElementById('viewerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
