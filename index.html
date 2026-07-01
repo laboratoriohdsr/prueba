@@ -548,6 +548,13 @@
   .card .admin-actions{display:flex; gap:6px; margin-top:6px;}
   .card .btn.danger{background:transparent; color:#a3372f; border-color:rgba(163,55,47,.3);}
   .card .btn.danger:hover{background:rgba(163,55,47,.08);}
+  .spec-row{
+    display:flex; align-items:center; gap:8px;
+    background:#fff; border:1px solid #eadfc4; border-radius:7px; padding:8px 10px;
+  }
+  .spec-row input[type="text"]{flex:1; border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:13.5px; font-family:'IBM Plex Sans',sans-serif;}
+  .spec-row input[type="color"]{width:34px; height:34px; border:1px solid var(--line); border-radius:6px; padding:2px; background:#fff; cursor:pointer;}
+  .spec-row .btn{padding:6px 10px; font-size:12px;}
   .spinner{
     display:inline-block; width:14px; height:14px; border-radius:50%;
     border:2px solid rgba(255,255,255,.4); border-top-color:#fff;
@@ -649,6 +656,26 @@
           <button type="button" class="btn ghost" id="logoutBtn">Cerrar sesión</button>
         </div>
       </form>
+
+      <div style="margin-top:22px; padding-top:18px; border-top:1px dashed #eadfc4;">
+        <h3>Gestionar especialidades</h3>
+        <div id="specMsg"></div>
+        <div id="specManageList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
+        <div class="admin-panel-row">
+          <div class="field">
+            <label for="newSpecName">Nueva especialidad</label>
+            <input type="text" id="newSpecName" placeholder="Ej. Ortopedia">
+          </div>
+          <div class="field" style="max-width:90px;">
+            <label for="newSpecColor">Color</label>
+            <input type="color" id="newSpecColor" value="#2c7a8c">
+          </div>
+          <div class="field" style="flex:0;">
+            <label>&nbsp;</label>
+            <button type="button" class="btn primary" id="addSpecBtn">Agregar</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="results-head">
       <h2 id="resultsTitle">Todas las guías</h2>
@@ -746,15 +773,21 @@ const IS_CONFIGURED = GITHUB_OWNER !== "TU-USUARIO-DE-GITHUB";
 const RAW_BASE  = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
 const API_BASE  = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents`;
 const INDEX_PATH = "data/index.json";
+const SPEC_PATH = "data/specialties.json";
 
-const SPECIALTIES = [
-  {id:'urgencias', label:'Urgencias', color:'var(--c-urgencias)'},
-  {id:'pediatria', label:'Pediatría', color:'var(--c-pediatria)'},
-  {id:'ginecologia', label:'Ginecología y Obstetricia', color:'var(--c-ginecologia)'},
-  {id:'medicina-interna', label:'Medicina Interna', color:'var(--c-medicina-interna)'},
-  {id:'cirugia', label:'Cirugía General', color:'var(--c-cirugia)'},
-  {id:'cardiologia', label:'Cardiología', color:'var(--c-cardiologia)'},
+// Especialidades de respaldo — se usan solo mientras no exista data/specialties.json
+// en el repositorio (por ejemplo la primera vez). En cuanto el administrador guarde
+// cambios desde el panel, esta lista de respaldo deja de usarse.
+const DEFAULT_SPECIALTIES = [
+  {id:'urgencias', label:'Urgencias', color:'#a3372f'},
+  {id:'pediatria', label:'Pediatría', color:'#1f6fa8'},
+  {id:'ginecologia', label:'Ginecología y Obstetricia', color:'#8a4a8f'},
+  {id:'medicina-interna', label:'Medicina Interna', color:'#15375c'},
+  {id:'cirugia', label:'Cirugía General', color:'#5a9c2c'},
+  {id:'cardiologia', label:'Cardiología', color:'#b5772b'},
 ];
+
+let SPECIALTIES = DEFAULT_SPECIALTIES;
 
 // Contenido de ejemplo — se usa solo si el repositorio aún no ha sido configurado
 const SAMPLE_GUIDES = [
@@ -892,6 +925,27 @@ async function loadGuides(){
   render();
 }
 
+async function loadSpecialties(){
+  if(!IS_CONFIGURED){
+    SPECIALTIES = DEFAULT_SPECIALTIES;
+    render();
+    return;
+  }
+  try{
+    const url = `${RAW_BASE}/${SPEC_PATH}?cb=${Date.now()}`;
+    const res = await fetch(url);
+    if(res.status === 404){ SPECIALTIES = DEFAULT_SPECIALTIES; render(); return; }
+    if(!res.ok) throw new Error('No se pudo leer las especialidades');
+    const text = await res.text();
+    const parsed = parseRepoJson(text);
+    SPECIALTIES = parsed.length ? parsed : DEFAULT_SPECIALTIES;
+  } catch(err){
+    console.error('Error cargando especialidades desde GitHub:', err);
+    SPECIALTIES = DEFAULT_SPECIALTIES;
+  }
+  render();
+}
+
 // =====================================================================
 // RENDER / FILTROS / BÚSQUEDA (misma lógica de siempre)
 // =====================================================================
@@ -934,12 +988,16 @@ function renderFilters(){
 function render(){
   renderFilters();
 
-  // Rellenar el select de especialidades del formulario de subida
+  // Rellenar el select de especialidades del formulario de subida (se actualiza
+  // siempre, ya que ahora las especialidades se pueden agregar/editar/eliminar).
   const fSpec = document.getElementById('fSpec');
-  if(fSpec && !fSpec.dataset.filled){
+  if(fSpec){
+    const prevValue = fSpec.value;
     fSpec.innerHTML = SPECIALTIES.map(s=>`<option value="${s.id}">${s.label}</option>`).join('');
-    fSpec.dataset.filled = '1';
+    if(SPECIALTIES.some(s=>s.id===prevValue)) fSpec.value = prevValue;
   }
+
+  if(isAdmin()) renderSpecManageList();
 
   const q = state.search.trim().toLowerCase();
   const filtered = GUIDES.filter(g=>{
@@ -1139,25 +1197,28 @@ async function githubDelete(path, message, sha){
 // lo que GitHub rechaza con un error 409 ("sha does not match").
 let writeBusy = false;
 
-function readIndexList(indexResponse){
-  if(!indexResponse) return { list: [], sha: null };
-  const decoded = decodeURIComponent(escape(atob(indexResponse.content.replace(/\n/g, ''))));
-  return { list: parseRepoJson(decoded), sha: indexResponse.sha };
+function readJsonFile(fileResponse){
+  if(!fileResponse) return { list: [], sha: null };
+  const decoded = decodeURIComponent(escape(atob(fileResponse.content.replace(/\n/g, ''))));
+  return { list: parseRepoJson(decoded), sha: fileResponse.sha };
 }
+// Alias por compatibilidad con nombres anteriores
+const readIndexList = readJsonFile;
 
-// Aplica un cambio al índice (agregar o quitar una guía) con reintentos automáticos:
-// si GitHub responde 409 porque el índice cambió entre que lo leímos y lo escribimos
-// (por ejemplo, dos clics casi al mismo tiempo), volvemos a leer el índice más
-// reciente y lo intentamos de nuevo, hasta 4 veces, antes de rendirnos.
-async function updateIndexWithRetry(mutatorFn, commitMessage){
+// Aplica un cambio (agregar/editar/quitar) a un archivo JSON del repositorio
+// (el índice de guías o el de especialidades) con reintentos automáticos:
+// si GitHub responde 409 porque el archivo cambió entre que lo leímos y lo
+// escribimos (por ejemplo, dos clics casi al mismo tiempo), volvemos a leer
+// la versión más reciente y lo intentamos de nuevo, hasta 4 veces.
+async function updateJsonFileWithRetry(path, mutatorFn, commitMessage){
   let lastErr = null;
   for(let attempt = 1; attempt <= 4; attempt++){
     try{
-      const existingIndex = await githubGet(INDEX_PATH);
-      const { list, sha } = readIndexList(existingIndex);
+      const existingFile = await githubGet(path);
+      const { list, sha } = readJsonFile(existingFile);
       const newList = mutatorFn(list);
-      const newIndexB64 = btoa(unescape(encodeURIComponent(JSON.stringify(newList, null, 2))));
-      await githubPut(INDEX_PATH, newIndexB64, commitMessage, sha);
+      const newB64 = btoa(unescape(encodeURIComponent(JSON.stringify(newList, null, 2))));
+      await githubPut(path, newB64, commitMessage, sha);
       return;
     } catch(err){
       lastErr = err;
@@ -1167,6 +1228,10 @@ async function updateIndexWithRetry(mutatorFn, commitMessage){
     }
   }
   throw lastErr;
+}
+// Alias por compatibilidad: uso específico para el índice de guías
+function updateIndexWithRetry(mutatorFn, commitMessage){
+  return updateJsonFileWithRetry(INDEX_PATH, mutatorFn, commitMessage);
 }
 
 document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
@@ -1273,9 +1338,129 @@ async function deleteGuide(idx){
 }
 
 // =====================================================================
+// GESTIONAR ESPECIALIDADES (solo administrador)
+// =====================================================================
+function renderSpecManageList(){
+  const wrap = document.getElementById('specManageList');
+  if(!wrap) return;
+  wrap.innerHTML = SPECIALTIES.map(s => `
+    <div class="spec-row" data-id="${escapeHtml(s.id)}">
+      <input type="color" class="spec-color-input" value="${escapeHtml(s.color)}">
+      <input type="text" class="spec-label-input" value="${escapeHtml(s.label)}">
+      <button type="button" class="btn ghost spec-save-btn">Guardar</button>
+      <button type="button" class="btn danger spec-delete-btn">Eliminar</button>
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('.spec-row').forEach(row=>{
+    const id = row.dataset.id;
+    row.querySelector('.spec-save-btn').addEventListener('click', ()=>saveSpecialty(id, row));
+    row.querySelector('.spec-delete-btn').addEventListener('click', ()=>deleteSpecialty(id));
+  });
+}
+
+// Nota: si data/specialties.json todavía no existe en el repositorio (primera vez
+// que se edita algo), partimos de la lista que ya se está mostrando (SPECIALTIES)
+// en vez de una lista vacía, para no perder las demás especialidades al guardar.
+function specialtiesBase(list){
+  return list.length ? list : SPECIALTIES;
+}
+
+async function saveSpecialty(id, row){
+  const msg = document.getElementById('specMsg');
+  if(writeBusy){ msg.innerHTML = '<div class="modal-error">Espera a que termine la operación en curso.</div>'; return; }
+  const newColor = row.querySelector('.spec-color-input').value;
+  const newLabel = row.querySelector('.spec-label-input').value.trim();
+  if(!newLabel){ msg.innerHTML = '<div class="modal-error">El nombre no puede quedar vacío.</div>'; return; }
+
+  const saveBtn = row.querySelector('.spec-save-btn');
+  writeBusy = true;
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<span class="spinner"></span>';
+  msg.innerHTML = '';
+  try{
+    await updateJsonFileWithRetry(SPEC_PATH, list => {
+      const base = specialtiesBase(list);
+      return base.map(s => s.id === id ? { ...s, label: newLabel, color: newColor } : s);
+    }, `Actualizar especialidad: ${newLabel}`);
+    await loadSpecialties();
+    await loadGuides(); // para que las tarjetas reflejen el nombre/color nuevo
+    msg.innerHTML = '<div class="modal-success">Especialidad actualizada.</div>';
+  } catch(err){
+    console.error(err);
+    msg.innerHTML = `<div class="modal-error">No se pudo guardar: ${escapeHtml(err.message)}</div>`;
+  } finally {
+    writeBusy = false;
+  }
+}
+
+async function deleteSpecialty(id){
+  const msg = document.getElementById('specMsg');
+  if(writeBusy){ msg.innerHTML = '<div class="modal-error">Espera a que termine la operación en curso.</div>'; return; }
+  const label = specMeta(id).label;
+  const usedCount = GUIDES.filter(g=>g.spec===id).length;
+  let confirmMsg = `¿Eliminar la especialidad "${label}"?`;
+  if(usedCount > 0){
+    confirmMsg += `\n\nHay ${usedCount} guía(s) que todavía están clasificadas en esta especialidad. No se eliminan, pero se mostrarán como "Otra" hasta que subas de nuevo esos documentos con otra especialidad.`;
+  }
+  if(!confirm(confirmMsg)) return;
+
+  writeBusy = true;
+  msg.innerHTML = '';
+  try{
+    await updateJsonFileWithRetry(SPEC_PATH, list => {
+      const base = specialtiesBase(list);
+      return base.filter(s => s.id !== id);
+    }, `Eliminar especialidad: ${label}`);
+    await loadSpecialties();
+    msg.innerHTML = '<div class="modal-success">Especialidad eliminada.</div>';
+  } catch(err){
+    console.error(err);
+    msg.innerHTML = `<div class="modal-error">No se pudo eliminar: ${escapeHtml(err.message)}</div>`;
+  } finally {
+    writeBusy = false;
+  }
+}
+
+document.getElementById('addSpecBtn').addEventListener('click', async ()=>{
+  const msg = document.getElementById('specMsg');
+  if(writeBusy){ msg.innerHTML = '<div class="modal-error">Espera a que termine la operación en curso.</div>'; return; }
+  const nameInput = document.getElementById('newSpecName');
+  const colorInput = document.getElementById('newSpecColor');
+  const name = nameInput.value.trim();
+  const color = colorInput.value;
+  if(!name){ msg.innerHTML = '<div class="modal-error">Escribe un nombre para la especialidad.</div>'; return; }
+  const id = slugify(name);
+
+  const btn = document.getElementById('addSpecBtn');
+  writeBusy = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  msg.innerHTML = '';
+  try{
+    await updateJsonFileWithRetry(SPEC_PATH, list => {
+      const base = specialtiesBase(list);
+      if(base.some(s=>s.id===id)) throw new Error('Ya existe una especialidad con ese nombre.');
+      return [...base, {id, label:name, color}];
+    }, `Agregar especialidad: ${name}`);
+    await loadSpecialties();
+    nameInput.value = '';
+    msg.innerHTML = '<div class="modal-success">Especialidad agregada.</div>';
+  } catch(err){
+    console.error(err);
+    msg.innerHTML = `<div class="modal-error">No se pudo agregar: ${escapeHtml(err.message)}</div>`;
+  } finally {
+    writeBusy = false;
+    btn.disabled = false;
+    btn.textContent = 'Agregar';
+  }
+});
+
+// =====================================================================
 // INICIO
 // =====================================================================
 updateAdminUI();
+loadSpecialties();
 loadGuides();
 </script>
 
