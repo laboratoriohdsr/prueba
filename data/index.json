@@ -1,14 +1,5 @@
 [
   {
-    "code": "NADA",
-    "title": "PRUEBAS NUMERO 2",
-    "spec": "urgencias",
-    "status": "vigente",
-    "updated": "2026-06",
-    "pages": 0,
-    "path": "guias/urgencias/nada-pruebas-numero-2-1782874076940.pdf"
-  },
-  {
     "code": "123",
     "title": "PRUEBA NUMERO 3",
     "spec": "pediatria",
