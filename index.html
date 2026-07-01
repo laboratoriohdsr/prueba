@@ -1133,6 +1133,42 @@ async function githubDelete(path, message, sha){
   }
 }
 
+// Evita que dos operaciones de escritura (subir/eliminar) se pisen entre sí.
+// Sin esto, dos clics seguidos (o un doble-clic accidental) pueden chocar
+// al intentar actualizar el mismo archivo data/index.json al mismo tiempo,
+// lo que GitHub rechaza con un error 409 ("sha does not match").
+let writeBusy = false;
+
+function readIndexList(indexResponse){
+  if(!indexResponse) return { list: [], sha: null };
+  const decoded = decodeURIComponent(escape(atob(indexResponse.content.replace(/\n/g, ''))));
+  return { list: parseRepoJson(decoded), sha: indexResponse.sha };
+}
+
+// Aplica un cambio al índice (agregar o quitar una guía) con reintentos automáticos:
+// si GitHub responde 409 porque el índice cambió entre que lo leímos y lo escribimos
+// (por ejemplo, dos clics casi al mismo tiempo), volvemos a leer el índice más
+// reciente y lo intentamos de nuevo, hasta 4 veces, antes de rendirnos.
+async function updateIndexWithRetry(mutatorFn, commitMessage){
+  let lastErr = null;
+  for(let attempt = 1; attempt <= 4; attempt++){
+    try{
+      const existingIndex = await githubGet(INDEX_PATH);
+      const { list, sha } = readIndexList(existingIndex);
+      const newList = mutatorFn(list);
+      const newIndexB64 = btoa(unescape(encodeURIComponent(JSON.stringify(newList, null, 2))));
+      await githubPut(INDEX_PATH, newIndexB64, commitMessage, sha);
+      return;
+    } catch(err){
+      lastErr = err;
+      const isConflict = /409/.test(err.message);
+      if(!isConflict) throw err;
+      await new Promise(r => setTimeout(r, 500 * attempt)); // pequeña espera antes de reintentar
+    }
+  }
+  throw lastErr;
+}
+
 document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const msg = document.getElementById('uploadMsg');
@@ -1140,6 +1176,10 @@ document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
 
   if(!IS_CONFIGURED){
     msg.innerHTML = '<div class="modal-error">Falta configurar GITHUB_OWNER y GITHUB_REPO al inicio del archivo antes de poder subir guías reales.</div>';
+    return;
+  }
+  if(writeBusy){
+    msg.innerHTML = '<div class="modal-error">Espera a que termine la operación en curso antes de subir otra guía.</div>';
     return;
   }
 
@@ -1165,6 +1205,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
   }
   if(!code) code = `GPC-${Date.now().toString().slice(-6)}`;
 
+  writeBusy = true;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Subiendo...';
   msg.innerHTML = '';
@@ -1176,22 +1217,11 @@ document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
 
     await githubPut(filePath, base64, `Subir guía: ${title}`);
 
-    const existingIndex = await githubGet(INDEX_PATH);
-    let list = [];
-    let sha = null;
-    if(existingIndex){
-      sha = existingIndex.sha;
-      const decoded = decodeURIComponent(escape(atob(existingIndex.content.replace(/\n/g, ''))));
-      list = parseRepoJson(decoded);
-    }
-
     const now = new Date();
     const updated = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const newEntry = { code, title, spec, status, updated, pages, path: filePath };
 
-    list.push({ code, title, spec, status, updated, pages, path: filePath });
-
-    const newIndexB64 = btoa(unescape(encodeURIComponent(JSON.stringify(list, null, 2))));
-    await githubPut(INDEX_PATH, newIndexB64, `Actualizar índice: ${title}`, sha);
+    await updateIndexWithRetry(list => { list.push(newEntry); return list; }, `Actualizar índice: ${title}`);
 
     msg.innerHTML = '<div class="modal-success">Guía subida correctamente. Puede tardar uno o dos minutos en aparecer para todos por la caché de GitHub Pages.</div>';
     document.getElementById('uploadForm').reset();
@@ -1200,6 +1230,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
     console.error(err);
     msg.innerHTML = `<div class="modal-error">No se pudo subir la guía: ${escapeHtml(err.message)}</div>`;
   } finally {
+    writeBusy = false;
     btn.disabled = false;
     btn.textContent = 'Subir guía';
   }
@@ -1211,7 +1242,15 @@ document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
 async function deleteGuide(idx){
   const guide = GUIDES[idx];
   if(!guide) return;
+  if(writeBusy){
+    alert('Espera a que termine la operación en curso antes de eliminar otra guía.');
+    return;
+  }
   if(!confirm(`¿Eliminar la guía "${guide.title}"? Esta acción no se puede deshacer.`)) return;
+
+  const btn = document.querySelector(`.delete-btn[data-idx="${idx}"]`);
+  writeBusy = true;
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Eliminando...'; }
 
   try{
     if(guide.path){
@@ -1220,18 +1259,16 @@ async function deleteGuide(idx){
         await githubDelete(guide.path, `Eliminar guía: ${guide.title}`, fileMeta.sha);
       }
     }
-    const existingIndex = await githubGet(INDEX_PATH);
-    if(existingIndex){
-      const decoded = decodeURIComponent(escape(atob(existingIndex.content.replace(/\n/g, ''))));
-      let list = parseRepoJson(decoded);
-      list = list.filter(g => g.path !== guide.path || g.title !== guide.title);
-      const newIndexB64 = btoa(unescape(encodeURIComponent(JSON.stringify(list, null, 2))));
-      await githubPut(INDEX_PATH, newIndexB64, `Eliminar del índice: ${guide.title}`, existingIndex.sha);
-    }
+    await updateIndexWithRetry(
+      list => list.filter(g => g.path !== guide.path || g.title !== guide.title),
+      `Eliminar del índice: ${guide.title}`
+    );
     await loadGuides();
   } catch(err){
     console.error(err);
-    alert('No se pudo eliminar la guía: ' + err.message);
+    alert('No se pudo eliminar la guía: ' + err.message + '\n\nPuedes intentarlo de nuevo — el archivo o el índice pueden haber quedado a medio actualizar, pero no se pierde nada, solo hay que reintentar.');
+  } finally {
+    writeBusy = false;
   }
 }
 
