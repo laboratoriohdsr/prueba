@@ -7,5 +7,14 @@
     "updated": "2026-06",
     "pages": 14,
     "path": "guias/prueba-1/0123-protocolo-de-prueba-1782877988642.pdf"
+  },
+  {
+    "code": "0123",
+    "title": "DOCUMENTO DE PRUEBA",
+    "spec": "urgencias",
+    "status": "vigente",
+    "updated": "2026-07",
+    "pages": 12,
+    "path": "guias/urgencias/0123-documento-de-prueba-1782909443497.pdf"
   }
 ]
